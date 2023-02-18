@@ -60,9 +60,9 @@ resource "aws_lambda_function" "cert_expiration_checker" {
 
   environment {
     variables = {
-      DOMAIN_NAME   = var.domain_name
-      SNS_TOPIC_ARN = var.sns_topic_arn
-      DAYS_BUFFER   = var.days_buffer
+      DOMAIN_NAME    = var.domain_name
+      SNS_TOPIC_ARN  = var.sns_topic_arn
+      BUFFER_IN_DAYS = var.buffer_in_days
     }
   }
 }

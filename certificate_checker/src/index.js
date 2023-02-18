@@ -10,8 +10,8 @@ module.exports.main = async () => {
   if (!process.env.SNS_TOPIC_ARN) {
     throw new Error("SNS_TOPIC_ARN not defined.");
   }
-  if (!process.env.DAYS_BUFFER) {
-    throw new Error("DAYS_BUFFER not defined.");
+  if (!process.env.BUFFER_IN_DAYS) {
+    throw new Error("BUFFER_IN_DAYS not defined.");
   }
 
   const cert = await tlsCert.get(process.env.DOMAIN_NAME);
@@ -20,9 +20,9 @@ module.exports.main = async () => {
   const daysLeft = Math.floor((date - now) / (1000 * 3600 * 24));
 
   // Return early if certificate is still good
-  if (daysLeft > process.env.DAYS_BUFFER) {
+  if (daysLeft > process.env.BUFFER_IN_DAYS) {
     console.log(
-      `${daysLeft} days left till ${process.env.DOMAIN_NAME} expiration > ${process.env.DAYS_BUFFER} days`
+      `${daysLeft} days left till ${process.env.DOMAIN_NAME} expiration > ${process.env.BUFFER_IN_DAYS} days`
     );
     return;
   }

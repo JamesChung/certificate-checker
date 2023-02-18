@@ -8,8 +8,8 @@ variable "domain_name" {
   type        = string
 }
 
-variable "days_buffer" {
-  description = "Buffer of days when to start alerts"
+variable "buffer_in_days" {
+  description = "Buffer in days on when to start alerts"
   type        = number
 }
 
