@@ -1,0 +1,11 @@
+{
+  "name": "certificate-checker",
+  "version": "0.1.0",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/"
+  },
+  "dependencies": {
+    "@aws-sdk/client-sns": "^3.188.0"
+  }
+}
