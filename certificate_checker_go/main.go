@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"crypto/tls"
+	"errors"
 	"fmt"
 	"log"
 	"os"
@@ -18,15 +19,18 @@ import (
 func handler() (string, error) {
 	domainName := os.Getenv("DOMAIN_NAME")
 	if domainName == "" {
-		log.Fatal("DOMAIN_NAME is not defined")
+		log.Println("DOMAIN_NAME is not defined")
+		return "", errors.New("DOMAIN_NAME is not defined")
 	}
 	snsTopicARN := os.Getenv("SNS_TOPIC_ARN")
 	if snsTopicARN == "" {
-		log.Fatal("SNS_TOPIC_ARN is not defined")
+		log.Println("SNS_TOPIC_ARN is not defined")
+		return "", errors.New("SNS_TOPIC_ARN is not defined")
 	}
 	bufferInDays := os.Getenv("BUFFER_IN_DAYS")
 	if bufferInDays == "" {
-		log.Fatal("BUFFER_IN_DAYS is not defined")
+		log.Println("BUFFER_IN_DAYS is not defined")
+		return "", errors.New("BUFFER_IN_DAYS is not defined")
 	}
 
 	conn, err := tls.Dial(
@@ -34,14 +38,16 @@ func handler() (string, error) {
 		fmt.Sprintf("%s:443", domainName),
 		nil)
 	if err != nil {
-		log.Fatal(err)
+		log.Println(err)
+		return "", err
 	}
 
 	expirationDate := conn.ConnectionState().PeerCertificates[0].NotAfter
 
 	bufferDays, err := strconv.Atoi(bufferInDays)
 	if err != nil {
-		log.Fatal(err)
+		log.Println(err)
+		return "", err
 	}
 
 	now := time.Now()
@@ -55,7 +61,8 @@ func handler() (string, error) {
 
 	cfg, err := config.LoadDefaultConfig(context.Background())
 	if err != nil {
-		log.Fatal(err)
+		log.Println(err)
+		return "", err
 	}
 
 	client := sns.NewFromConfig(cfg)
@@ -78,7 +85,8 @@ func handler() (string, error) {
 
 	output, err := client.Publish(context.Background(), input)
 	if err != nil {
-		log.Fatal(err)
+		log.Println(err)
+		return "", err
 	}
 
 	msgID := fmt.Sprintf("MessageID: %s", aws.ToString(output.MessageId))
