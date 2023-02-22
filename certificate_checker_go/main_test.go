@@ -1,12 +1,12 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"os"
 	"strconv"
 	"testing"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/sns"
 )
 
@@ -136,14 +136,17 @@ func Test_getBufferInDays(t *testing.T) {
 	})
 }
 
-func Test_publishMessage(t *testing.T) {
-	t.Run("Publish Fail", func(t *testing.T) {
-		_, err := publishMessage(&sns.PublishInput{
-			Message: aws.String(""),
-			Subject: aws.String(""),
-		})
-		if err == nil {
-			t.Fail()
-		}
-	})
+type mockSNS struct{}
+
+func (m mockSNS) Publish(context.Context, *sns.PublishInput, ...func(*sns.Options)) (*sns.PublishOutput, error) {
+	return &sns.PublishOutput{}, nil
+}
+
+func Test_pub(t *testing.T) {
+	resetEnv()
+	m := mockSNS{}
+	_, err := pub(context.Background(), m, &sns.PublishInput{})
+	if err != nil {
+		t.Fail()
+	}
 }

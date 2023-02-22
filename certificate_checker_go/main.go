@@ -22,6 +22,10 @@ var (
 	BufferInDaysErr = errors.New("BUFFER_IN_DAYS is not defined")
 )
 
+type SNSPublish interface {
+	Publish(context.Context, *sns.PublishInput, ...func(*sns.Options)) (*sns.PublishOutput, error)
+}
+
 func getDomainName() (string, error) {
 	domainName := os.Getenv("DOMAIN_NAME")
 	if domainName == "" {
@@ -46,15 +50,12 @@ func getBufferInDays() (string, error) {
 	return bufferInDays, nil
 }
 
-func publishMessage(input *sns.PublishInput) (string, error) {
-	cfg, _ := config.LoadDefaultConfig(context.Background())
-	client := sns.NewFromConfig(cfg)
-	output, err := client.Publish(context.Background(), input)
+func pub(ctx context.Context, api SNSPublish, input *sns.PublishInput) (string, error) {
+	output, err := api.Publish(ctx, input)
 	if err != nil {
 		return "", err
 	}
-	msgID := fmt.Sprintf("MessageID: %s", aws.ToString(output.MessageId))
-	return msgID, nil
+	return fmt.Sprintf("MessageID: %s", aws.ToString(output.MessageId)), nil
 }
 
 func handler() (string, error) {
@@ -108,7 +109,12 @@ func handler() (string, error) {
 		TopicArn: aws.String(snsTopicARN),
 	}
 
-	msgID, err := publishMessage(input)
+	cfg, err := config.LoadDefaultConfig(context.Background())
+	if err != nil {
+		return "", err
+	}
+	client := sns.NewFromConfig(cfg)
+	msgID, err := pub(context.Background(), client, input)
 	if err != nil {
 		return "", err
 	}
