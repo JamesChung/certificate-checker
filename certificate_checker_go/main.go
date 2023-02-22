@@ -5,7 +5,6 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
-	"log"
 	"os"
 	"strconv"
 	"time"
@@ -16,37 +15,71 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/sns"
 )
 
-func handler() (string, error) {
+var (
+	lambdaStart     = lambda.Start
+	DomainNameErr   = errors.New("DOMAIN_NAME is not defined")
+	SNSTopicARNErr  = errors.New("SNS_TOPIC_ARN is not defined")
+	BufferInDaysErr = errors.New("BUFFER_IN_DAYS is not defined")
+)
+
+func getDomainName() (string, error) {
 	domainName := os.Getenv("DOMAIN_NAME")
 	if domainName == "" {
-		log.Println("DOMAIN_NAME is not defined")
-		return "", errors.New("DOMAIN_NAME is not defined")
+		return "", DomainNameErr
 	}
+	return domainName, nil
+}
+
+func getSNSTopicARN() (string, error) {
 	snsTopicARN := os.Getenv("SNS_TOPIC_ARN")
 	if snsTopicARN == "" {
-		log.Println("SNS_TOPIC_ARN is not defined")
-		return "", errors.New("SNS_TOPIC_ARN is not defined")
+		return "", SNSTopicARNErr
 	}
+	return snsTopicARN, nil
+}
+
+func getBufferInDays() (string, error) {
 	bufferInDays := os.Getenv("BUFFER_IN_DAYS")
 	if bufferInDays == "" {
-		log.Println("BUFFER_IN_DAYS is not defined")
-		return "", errors.New("BUFFER_IN_DAYS is not defined")
+		return "", BufferInDaysErr
+	}
+	return bufferInDays, nil
+}
+
+func publishMessage(input *sns.PublishInput) (string, error) {
+	cfg, _ := config.LoadDefaultConfig(context.Background())
+	client := sns.NewFromConfig(cfg)
+	output, err := client.Publish(context.Background(), input)
+	if err != nil {
+		return "", err
+	}
+	msgID := fmt.Sprintf("MessageID: %s", aws.ToString(output.MessageId))
+	return msgID, nil
+}
+
+func handler() (string, error) {
+	domainName, err := getDomainName()
+	if err != nil {
+		return "", err
+	}
+	snsTopicARN, err := getSNSTopicARN()
+	if err != nil {
+		return "", err
+	}
+	bufferInDays, err := getBufferInDays()
+	if err != nil {
+		return "", err
 	}
 
-	conn, err := tls.Dial(
+	conn, _ := tls.Dial(
 		"tcp",
 		fmt.Sprintf("%s:443", domainName),
 		nil)
-	if err != nil {
-		log.Println(err)
-		return "", err
-	}
 
 	expirationDate := conn.ConnectionState().PeerCertificates[0].NotAfter
 
 	bufferDays, err := strconv.Atoi(bufferInDays)
 	if err != nil {
-		log.Println(err)
 		return "", err
 	}
 
@@ -58,14 +91,6 @@ func handler() (string, error) {
 	if buffer.After(expirationDate) {
 		return "", nil
 	}
-
-	cfg, err := config.LoadDefaultConfig(context.Background())
-	if err != nil {
-		log.Println(err)
-		return "", err
-	}
-
-	client := sns.NewFromConfig(cfg)
 
 	msg := fmt.Sprintf(
 		"%s certificate will expire in %d days on %s.",
@@ -83,16 +108,14 @@ func handler() (string, error) {
 		TopicArn: aws.String(snsTopicARN),
 	}
 
-	output, err := client.Publish(context.Background(), input)
+	msgID, err := publishMessage(input)
 	if err != nil {
-		log.Println(err)
 		return "", err
 	}
 
-	msgID := fmt.Sprintf("MessageID: %s", aws.ToString(output.MessageId))
 	return msgID, nil
 }
 
 func main() {
-	lambda.Start(handler)
+	lambdaStart(handler)
 }
