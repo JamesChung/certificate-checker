@@ -17,37 +17,130 @@ import (
 
 var (
 	lambdaStart     = lambda.Start
-	DomainNameErr   = errors.New("DOMAIN_NAME is not defined")
-	SNSTopicARNErr  = errors.New("SNS_TOPIC_ARN is not defined")
-	BufferInDaysErr = errors.New("BUFFER_IN_DAYS is not defined")
+	ErrDomainName   = errors.New("DOMAIN_NAME is not defined")
+	ErrSNSTopicARN  = errors.New("SNS_TOPIC_ARN is not defined")
+	ErrBufferInDays = errors.New("BUFFER_IN_DAYS is not defined")
 )
 
 type SNSPublish interface {
 	Publish(context.Context, *sns.PublishInput, ...func(*sns.Options)) (*sns.PublishOutput, error)
 }
 
-func getDomainName() (string, error) {
+type Env struct {
+	DomainName   string
+	SNSTopicARN  string
+	BufferInDays int
+}
+
+func getEnv() (Env, error) {
+	domainName, err := GetDomainName()
+	if err != nil {
+		return Env{}, err
+	}
+	snsTopicARN, err := GetSNSTopicARN()
+	if err != nil {
+		return Env{}, err
+	}
+	bufferInDays, err := GetBufferInDays()
+	if err != nil {
+		return Env{}, err
+	}
+	return Env{
+		DomainName:   domainName,
+		SNSTopicARN:  snsTopicARN,
+		BufferInDays: bufferInDays,
+	}, nil
+}
+
+func GetDomainName() (string, error) {
 	domainName := os.Getenv("DOMAIN_NAME")
 	if domainName == "" {
-		return "", DomainNameErr
+		return "", ErrDomainName
 	}
 	return domainName, nil
 }
 
-func getSNSTopicARN() (string, error) {
+func GetSNSTopicARN() (string, error) {
 	snsTopicARN := os.Getenv("SNS_TOPIC_ARN")
 	if snsTopicARN == "" {
-		return "", SNSTopicARNErr
+		return "", ErrSNSTopicARN
 	}
 	return snsTopicARN, nil
 }
 
-func getBufferInDays() (string, error) {
+func GetBufferInDays() (int, error) {
 	bufferInDays := os.Getenv("BUFFER_IN_DAYS")
 	if bufferInDays == "" {
-		return "", BufferInDaysErr
+		return 0, ErrBufferInDays
 	}
-	return bufferInDays, nil
+	days, err := parseInt(bufferInDays)
+	if err != nil {
+		return 0, err
+	}
+	return days, nil
+}
+
+type CertInfo struct {
+	Expiration     time.Time
+	Buffer         time.Time
+	CertDiffInDays int
+}
+
+func parseInt(str string) (int, error) {
+	i, err := strconv.Atoi(str)
+	if err != nil {
+		return 0, err
+	}
+	return i, nil
+}
+
+type Dialer interface {
+	Dial(network string, addr string, config *tls.Config) (*tls.Conn, error)
+}
+
+func getConn(dial Dialer, domainName string) (*tls.Conn, error) {
+	conn, err := dial.Dial(
+		"tcp",
+		fmt.Sprintf("%s:443", domainName),
+		&tls.Config{InsecureSkipVerify: true})
+	if err != nil {
+		return nil, err
+	}
+	return conn, nil
+}
+
+type Connection interface {
+	ConnectionState() tls.ConnectionState
+}
+
+func getCertInfo(conn Connection, env Env) CertInfo {
+	expirationDate := conn.ConnectionState().PeerCertificates[0].NotAfter
+	now := time.Now()
+	buffer := now.Add((time.Hour * 24) * time.Duration(env.BufferInDays))
+	certDiffInDays := int(expirationDate.Sub(now).Hours() / 24)
+	return CertInfo{
+		Expiration:     expirationDate,
+		Buffer:         buffer,
+		CertDiffInDays: certDiffInDays,
+	}
+}
+
+func constructPubInput(env Env, certInfo CertInfo) *sns.PublishInput {
+	msg := fmt.Sprintf(
+		"%s certificate will expire in %d days on %s.",
+		env.DomainName,
+		certInfo.CertDiffInDays,
+		certInfo.Expiration.Format(time.RubyDate),
+	)
+	sub := fmt.Sprintf(
+		"%s Certificate Expiring Soon",
+		env.DomainName,
+	)
+	return &sns.PublishInput{
+		Message:  aws.String(msg),
+		Subject:  aws.String(sub),
+		TopicArn: aws.String(env.SNSTopicARN),
+	}
 }
 
 func pub(ctx context.Context, api SNSPublish, input *sns.PublishInput) (string, error) {
@@ -58,55 +151,30 @@ func pub(ctx context.Context, api SNSPublish, input *sns.PublishInput) (string, 
 	return fmt.Sprintf("MessageID: %s", aws.ToString(output.MessageId)), nil
 }
 
+type TLSDialer struct{}
+
+func (t TLSDialer) Dial(network string, addr string, config *tls.Config) (*tls.Conn, error) {
+	return tls.Dial(network, addr, config)
+}
+
 func handler() (string, error) {
-	domainName, err := getDomainName()
-	if err != nil {
-		return "", err
-	}
-	snsTopicARN, err := getSNSTopicARN()
-	if err != nil {
-		return "", err
-	}
-	bufferInDays, err := getBufferInDays()
+	env, err := getEnv()
 	if err != nil {
 		return "", err
 	}
 
-	conn, _ := tls.Dial(
-		"tcp",
-		fmt.Sprintf("%s:443", domainName),
-		nil)
-
-	expirationDate := conn.ConnectionState().PeerCertificates[0].NotAfter
-
-	bufferDays, err := strconv.Atoi(bufferInDays)
+	dial := TLSDialer{}
+	conn, err := getConn(dial, env.DomainName)
 	if err != nil {
 		return "", err
 	}
+	defer conn.Close()
 
-	now := time.Now()
-	buffer := now.Add((time.Hour * 24) * time.Duration(bufferDays))
-	certDiffInDays := int(expirationDate.Sub(now).Hours() / 24)
+	certInfo := getCertInfo(conn, env)
 
 	// Break early when certificate is good
-	if buffer.After(expirationDate) {
+	if certInfo.Buffer.After(certInfo.Expiration) {
 		return "", nil
-	}
-
-	msg := fmt.Sprintf(
-		"%s certificate will expire in %d days on %s.",
-		domainName,
-		certDiffInDays,
-		expirationDate.Format(time.RubyDate),
-	)
-	sub := fmt.Sprintf(
-		"%s Certificate Expiring Soon",
-		domainName,
-	)
-	input := &sns.PublishInput{
-		Message:  aws.String(msg),
-		Subject:  aws.String(sub),
-		TopicArn: aws.String(snsTopicARN),
 	}
 
 	cfg, err := config.LoadDefaultConfig(context.Background())
@@ -114,6 +182,7 @@ func handler() (string, error) {
 		return "", err
 	}
 	client := sns.NewFromConfig(cfg)
+	input := constructPubInput(env, certInfo)
 	msgID, err := pub(context.Background(), client, input)
 	if err != nil {
 		return "", err
