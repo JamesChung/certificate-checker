@@ -96,7 +96,7 @@ func handler() (string, error) {
 		"%s certificate will expire in %d days on %s.",
 		domainName,
 		certDiffInDays,
-		expirationDate.Format(time.RFC822),
+		expirationDate.Format(time.RubyDate),
 	)
 	sub := fmt.Sprintf(
 		"%s Certificate Expiring Soon",
