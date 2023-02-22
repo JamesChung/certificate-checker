@@ -18,7 +18,7 @@ func resetEnv() {
 	os.Setenv("BUFFER_IN_DAYS", "")
 }
 
-func TestHandler(t *testing.T) {
+func Test_handler(t *testing.T) {
 	t.Run("Domain Name", func(t *testing.T) {
 		v, err := handler()
 		if err != DomainNameErr && v != "" {
@@ -65,7 +65,7 @@ func TestHandler(t *testing.T) {
 	})
 }
 
-func TestMain(t *testing.T) {
+func Test_main(t *testing.T) {
 	t.Run("main", func(t *testing.T) {
 		var testLambdaStart = lambdaStart
 		defer func() {
@@ -76,7 +76,7 @@ func TestMain(t *testing.T) {
 	})
 }
 
-func TestGetDomainName(t *testing.T) {
+func Test_getDomainName(t *testing.T) {
 	t.Run("bad", func(t *testing.T) {
 		resetEnv()
 		os.Setenv("DOMAIN_NAME", "")
@@ -96,7 +96,7 @@ func TestGetDomainName(t *testing.T) {
 	})
 }
 
-func TestGetSNSTopicARN(t *testing.T) {
+func Test_getSNSTopicARN(t *testing.T) {
 	t.Run("bad", func(t *testing.T) {
 		resetEnv()
 		os.Setenv("SNS_TOPIC_ARN", "")
@@ -116,7 +116,7 @@ func TestGetSNSTopicARN(t *testing.T) {
 	})
 }
 
-func TestGetBufferInDays(t *testing.T) {
+func Test_getBufferInDays(t *testing.T) {
 	t.Run("bad", func(t *testing.T) {
 		resetEnv()
 		os.Setenv("BUFFER_IN_DAYS", "")
@@ -136,7 +136,7 @@ func TestGetBufferInDays(t *testing.T) {
 	})
 }
 
-func TestPublishMessage(t *testing.T) {
+func Test_publishMessage(t *testing.T) {
 	t.Run("Publish Fail", func(t *testing.T) {
 		_, err := publishMessage(&sns.PublishInput{
 			Message: aws.String(""),
