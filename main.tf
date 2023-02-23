@@ -1,7 +1,16 @@
 locals {
   function_name = "cert-expiration-checker"
   rule_name     = "cert-checker-trigger"
-  runtime       = "go1.x"
+  runtime       = var.checker_language == "go" ? "go1.x" : var.checker_language == "node" ? "nodejs18.x" : "go1.x"
+  go_path       = "${path.module}/certificate_checker_go"
+  node_path     = "${path.module}/certificate_checker_node/src"
+}
+
+data "archive_file" "lambda_code" {
+  type        = "zip"
+  source_dir  = local.runtime == "nodejs18.x" ? local.node_path : local.go_path
+  output_path = "${path.module}/code.zip"
+  excludes    = ["go.mod", "go.sum", "localhost.crt", "localhost.key", "main.go", "main_test.go"]
 }
 
 resource "aws_iam_role" "cert_checker_lambda_role" {
@@ -43,14 +52,14 @@ resource "aws_iam_role_policy" "cert_checker_lambda_role_policy" {
 }
 
 resource "aws_lambda_function" "cert_expiration_checker" {
-  filename      = "certificate_checker_go/main.zip"
+  filename      = data.archive_file.lambda_code.output_path
   function_name = local.function_name
   role          = aws_iam_role.cert_checker_lambda_role.arn
-  handler       = "main"
+  handler       = local.runtime == "nodejs18.x" ? "index.main" : "main"
   runtime       = local.runtime
   tags          = var.tags
 
-  source_code_hash = filesha256("certificate_checker_go/main.zip")
+  source_code_hash = data.archive_file.lambda_code.output_base64sha256
 
   environment {
     variables = {

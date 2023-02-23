@@ -239,15 +239,6 @@ func Test_pub(t *testing.T) {
 }
 
 func Test_handler(t *testing.T) {
-	t.Run("general failure", func(t *testing.T) {
-		os.Setenv("DOMAIN_NAME", domain)
-		os.Setenv("SNS_TOPIC_ARN", arn)
-		os.Setenv("BUFFER_IN_DAYS", bid)
-		_, err := handler()
-		if err == nil {
-			t.Fail()
-		}
-	})
 	t.Run("env failure", func(t *testing.T) {
 		resetEnv()
 		_, err := handler()
@@ -266,11 +257,21 @@ func Test_handler(t *testing.T) {
 		}()
 		go func() {
 			defer wg.Done()
+			// Success
 			resetEnv()
 			os.Setenv("DOMAIN_NAME", "localhost")
 			os.Setenv("SNS_TOPIC_ARN", arn)
 			os.Setenv("BUFFER_IN_DAYS", bid)
 			_, err := handler()
+			if err != nil {
+				t.Fail()
+			}
+			// Fail
+			resetEnv()
+			os.Setenv("DOMAIN_NAME", "localhost")
+			os.Setenv("SNS_TOPIC_ARN", arn)
+			os.Setenv("BUFFER_IN_DAYS", "1000")
+			_, err = handler()
 			if err == nil {
 				t.Fail()
 			}

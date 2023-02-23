@@ -173,8 +173,8 @@ func handler() (string, error) {
 	certInfo := getCertInfo(conn, env)
 
 	// Break early when certificate is good
-	if certInfo.Buffer.After(certInfo.Expiration) {
-		return "", nil
+	if certInfo.Expiration.After(certInfo.Buffer) {
+		return fmt.Sprintf("%d days left", certInfo.CertDiffInDays), nil
 	}
 
 	cfg, err := config.LoadDefaultConfig(context.Background())
