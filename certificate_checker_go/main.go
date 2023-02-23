@@ -183,12 +183,7 @@ func handler() (string, error) {
 	}
 	client := sns.NewFromConfig(cfg)
 	input := constructPubInput(env, certInfo)
-	msgID, err := pub(context.Background(), client, input)
-	if err != nil {
-		return "", err
-	}
-
-	return msgID, nil
+	return pub(context.Background(), client, input)
 }
 
 func main() {
