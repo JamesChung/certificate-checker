@@ -9,9 +9,10 @@ Terraform module to create a scheduled event to check a given endpoint certifica
 module "certificate_checker" {
     source = "github.com/JamesChung/certificate-checker"
 
-    sns_topic_arn  = "arn:aws:sns:us-east-1:000000000000:my-topic"
-    domain_name    = "google.com"
-    buffer_in_days = 60
+    sns_topic_arn    = "arn:aws:sns:us-east-1:000000000000:my-topic"
+    checker_language = "go"
+    domain_name      = "google.com"
+    buffer_in_days   = 60
 }
 ```
 
@@ -21,6 +22,7 @@ module "certificate_checker" {
 |:-:|:-:|:-:|:-:|:-:|
 |sns_topic_arn|ARN of the SNS topic the lambda will broadcast to|`string`||Yes|
 |domain_name|The domain name of the endpoint to check certificate expiration|`string`||Yes|
+|checker_language|Valid values are either [go, node]|`string`||Yes|
 |buffer_in_days|Buffer in days when to start alerts|`number`||Yes|
 |schedule_expression|The scheduled rate at which to check the certificate ([Expression Reference](https://docs.aws.amazon.com/AmazonCloudWatch/latest/events/ScheduledEvents.html))|`string`|`"rate(1 day)"`|No|
 |tags|A map of tags to add to all resources|`map(string)`|`{}`|No|
