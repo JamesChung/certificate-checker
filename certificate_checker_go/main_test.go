@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"sync"
 	"testing"
 	"time"
 
@@ -254,21 +255,26 @@ func Test_handler(t *testing.T) {
 			t.Fail()
 		}
 	})
-
 	t.Run("dial", func(t *testing.T) {
+		wg := sync.WaitGroup{}
+		wg.Add(1)
 		go func() {
 			http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 				fmt.Fprintf(w, "hello")
 			})
 			fmt.Println(http.ListenAndServeTLS(":443", "localhost.crt", "localhost.key", nil))
 		}()
-		resetEnv()
-		os.Setenv("DOMAIN_NAME", "localhost")
-		os.Setenv("SNS_TOPIC_ARN", arn)
-		os.Setenv("BUFFER_IN_DAYS", bid)
-		_, err := handler()
-		if err == nil {
-			t.Fail()
-		}
+		go func() {
+			defer wg.Done()
+			resetEnv()
+			os.Setenv("DOMAIN_NAME", "localhost")
+			os.Setenv("SNS_TOPIC_ARN", arn)
+			os.Setenv("BUFFER_IN_DAYS", bid)
+			_, err := handler()
+			if err == nil {
+				t.Fail()
+			}
+		}()
+		wg.Wait()
 	})
 }
