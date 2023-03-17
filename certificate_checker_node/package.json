@@ -3,9 +3,9 @@
   "version": "0.1.0",
   "main": "src/index.js",
   "scripts": {
-    "start": "node src/"
+    "start": "node -e 'require(\"./src\").main()'"
   },
   "dependencies": {
-    "aws-sdk": "^2.1337.0"
+    "aws-sdk": "^2.1083.0"
   }
 }
