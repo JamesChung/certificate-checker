@@ -13,11 +13,6 @@ variable "buffer_in_days" {
   type        = number
 }
 
-variable "checker_language" {
-  description = "(Required) Valid values are either [go, node]"
-  type        = string
-}
-
 variable "schedule_expression" {
   description = "(Optional) The scheduled rate at which to check the certificate"
   type        = string

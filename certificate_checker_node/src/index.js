@@ -1,7 +1,7 @@
-const { SNSClient, PublishCommand } = require("@aws-sdk/client-sns");
+const { SNS } = require("aws-sdk");
 const tlsCert = require("./tls-helper");
 
-const notify = new SNSClient();
+const sns = new SNS();
 
 module.exports.main = async () => {
   if (!process.env.DOMAIN_NAME) {
@@ -28,12 +28,11 @@ module.exports.main = async () => {
   }
 
   try {
-    const command = new PublishCommand({
+    await sns.publish({
       Message: `${process.env.DOMAIN_NAME} certificate will expire in ${daysLeft} days on ${cert.valid_to}.`,
       Subject: `${process.env.DOMAIN_NAME} Certificate Expiring Soon`,
       TopicArn: process.env.SNS_TOPIC_ARN,
-    });
-    await notify.send(command);
+    }).promise();
   } catch (err) {
     console.error(err);
   }
